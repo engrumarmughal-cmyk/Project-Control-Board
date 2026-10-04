@@ -1,0 +1,299 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="robots" content="noindex,nofollow">
+<meta name="theme-color" content="#1f5f8b">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Project Board">
+<title>Project Control Board</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='12' fill='%231f5f8b'/%3E%3Crect x='14' y='16' width='36' height='6' rx='2' fill='%23fff'/%3E%3Crect x='14' y='29' width='26' height='6' rx='2' fill='%23fff'/%3E%3Crect x='14' y='42' width='31' height='6' rx='2' fill='%23fff'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Public+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
+<script>
+/* ======================= SETTINGS — edit these two lines ======================= */
+const SHEET_ID    = "PASTE_YOUR_GOOGLE_SHEET_ID_HERE";   // the long code in your Google Sheet's link
+const BOARD_TITLE = "Project Control Board";
+/* ================================================================================ */
+</script>
+<style>
+/* Layout: control-room board, read-only team view — summary gauges, project + person filters, tabbed registers */
+:root{
+  --bg:#eef1f4; --panel:#ffffff; --ink:#18212b; --muted:#5d6b79; --line:#d5dce3;
+  --accent:#1f5f8b; --accent-ink:#ffffff; --accent-soft:#dbe8f2;
+  --ok:#2f7d4f; --warn:#a86a00; --bad:#b3362c; --idle:#6c7887;
+  --ok-soft:#dff0e5; --warn-soft:#fbecd0; --bad-soft:#f8dedb; --idle-soft:#e6eaee;
+  --display:"Barlow Condensed","Arial Narrow",system-ui,sans-serif;
+  --body:"Public Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --mono:"JetBrains Mono",ui-monospace,Menlo,Consolas,monospace;
+  color-scheme:light;
+}
+@media (prefers-color-scheme:dark){:root{
+  --bg:#11161c; --panel:#19212a; --ink:#e4eaf0; --muted:#93a1af; --line:#2b3642;
+  --accent:#5aa6d8; --accent-ink:#0c1620; --accent-soft:#1d3346;
+  --ok:#6cc790; --warn:#e6b04f; --bad:#f07b70; --idle:#97a4b1;
+  --ok-soft:#173326; --warn-soft:#3a2c12; --bad-soft:#3d1c19; --idle-soft:#242e38;
+  color-scheme:dark}}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--body);font-size:14px;line-height:1.45;
+  padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+[hidden]{display:none!important}
+.wrap{max-width:1100px;margin:0 auto;padding-inline:16px;padding-block:20px 48px;display:grid;gap:16px}
+header{display:flex;flex-wrap:wrap;align-items:end;justify-content:space-between;gap:8px 16px}
+h1{font-family:var(--display);font-weight:700;font-size:30px;letter-spacing:.01em;margin:0;text-wrap:balance}
+.sync{display:flex;align-items:center;gap:10px;font-family:var(--mono);font-size:12px;color:var(--muted)}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--idle)}
+.dot.live{background:var(--ok)} .dot.err{background:var(--bad)}
+button{font:inherit;cursor:pointer}
+button:focus-visible,select:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.refresh{font-size:12.5px;background:var(--panel);border:1px solid var(--line);color:var(--ink);border-radius:4px;padding:4px 10px}
+
+.gauges{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
+.gauge{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:12px 14px;display:grid;gap:2px;border-top:3px solid var(--idle)}
+.gauge.bad{border-top-color:var(--bad)} .gauge.warn{border-top-color:var(--warn)} .gauge.acc{border-top-color:var(--accent)}
+.gauge b{font-family:var(--display);font-size:32px;font-weight:600;line-height:1;font-variant-numeric:tabular-nums}
+.gauge span{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)}
+@media(max-width:640px){.gauges{grid-template-columns:repeat(2,minmax(0,1fr))}}
+
+.filters{display:grid;gap:10px}
+.strip{display:flex;flex-wrap:wrap;gap:8px}
+.chip{font-size:13px;border:1px solid var(--line);background:var(--panel);color:var(--ink);border-radius:999px;padding:5px 12px}
+.chip[aria-pressed="true"]{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+.who{display:flex;align-items:center;gap:8px;font-size:11px;text-transform:uppercase;letter-spacing:.07em;color:var(--muted)}
+.who select{font:inherit;font-size:13px;text-transform:none;letter-spacing:0;color:var(--ink);background:var(--panel);border:1px solid var(--line);border-radius:4px;padding:5px 8px;max-width:100%}
+
+.tabs{display:flex;gap:2px;border-bottom:1px solid var(--line);overflow-x:auto}
+.tab{font-family:var(--display);font-size:17px;font-weight:600;letter-spacing:.03em;background:none;border:0;border-bottom:3px solid transparent;color:var(--muted);padding:8px 14px;white-space:nowrap}
+.tab[aria-selected="true"]{color:var(--ink);border-bottom-color:var(--accent)}
+.tab small{font-family:var(--mono);font-size:11px;margin-left:6px;color:var(--muted)}
+
+.list{display:grid;gap:8px;min-width:0}
+.group{font-family:var(--display);font-size:15px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin:8px 0 0}
+.row{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:10px 12px;display:grid;grid-template-columns:minmax(0,1fr) auto;gap:6px 12px;border-left:4px solid var(--idle)}
+.row.s-bad{border-left-color:var(--bad)} .row.s-warn{border-left-color:var(--warn)} .row.s-ok{border-left-color:var(--ok)} .row.s-acc{border-left-color:var(--accent)}
+.row.done{opacity:.6}
+.row h3{margin:0;font-size:14.5px;font-weight:600;overflow-wrap:anywhere}
+.meta{display:flex;flex-wrap:wrap;gap:4px 12px;font-size:12.5px;color:var(--muted)}
+.meta .d{font-family:var(--mono);font-size:12px}
+.body{grid-column:1/-1;font-size:13px;white-space:pre-wrap;overflow-wrap:anywhere;margin:0}
+.pill{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;border-radius:3px;padding:2px 6px;background:var(--idle-soft);color:var(--idle);white-space:nowrap;align-self:start}
+.pill.bad{background:var(--bad-soft);color:var(--bad)} .pill.warn{background:var(--warn-soft);color:var(--warn)} .pill.ok{background:var(--ok-soft);color:var(--ok)} .pill.acc{background:var(--accent-soft);color:var(--accent)}
+.empty,.notice{border:1px dashed var(--line);border-radius:6px;padding:22px;color:var(--muted);font-size:13.5px;text-align:center}
+.notice{border-style:solid;border-color:var(--bad);color:var(--ink);text-align:left}
+.notice strong{color:var(--bad)}
+
+.pgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:10px}
+.pcard{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:12px 14px;display:grid;gap:8px;align-content:start}
+.pcard h3{font-family:var(--display);font-size:20px;font-weight:600;margin:0}
+.pcard dl{margin:0;display:grid;grid-template-columns:auto minmax(0,1fr);gap:3px 10px;font-size:12.5px}
+.pcard dt{color:var(--muted)} .pcard dd{margin:0;overflow-wrap:anywhere}
+.counts{display:flex;gap:10px;font-family:var(--mono);font-size:11.5px;color:var(--muted);flex-wrap:wrap}
+.counts .bad{color:var(--bad)}
+footer{font-size:12px;color:var(--muted)}
+@media (prefers-reduced-motion:no-preference){.row{transition:opacity .2s}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1 id="title">Project Control Board</h1>
+    <div class="sync"><span class="dot" id="dot"></span><span id="synced">Loading…</span><button class="refresh" id="refresh" type="button">Refresh</button></div>
+  </header>
+
+  <div id="notice" hidden></div>
+
+  <section class="gauges" aria-label="Summary">
+    <div class="gauge bad"><b id="g-over">–</b><span>Overdue tasks</span></div>
+    <div class="gauge warn"><b id="g-week">–</b><span>Due in 7 days</span></div>
+    <div class="gauge acc"><b id="g-open">–</b><span>Open tasks</span></div>
+    <div class="gauge"><b id="g-wait">–</b><span>Waiting to receive</span></div>
+  </section>
+
+  <section class="filters">
+    <nav class="strip" id="strip" aria-label="Filter by project"></nav>
+    <label class="who" for="person">Show tasks for
+      <select id="person"><option value="">Everyone</option></select>
+    </label>
+  </section>
+
+  <div class="tabs" role="tablist">
+    <button class="tab" role="tab" data-tab="tasks" aria-selected="true">Tasks<small id="c-tasks"></small></button>
+    <button class="tab" role="tab" data-tab="inout" aria-selected="false">Incoming / Outgoing<small id="c-inout"></small></button>
+    <button class="tab" role="tab" data-tab="meetings" aria-selected="false">Meetings<small id="c-meetings"></small></button>
+    <button class="tab" role="tab" data-tab="projects" aria-selected="false">Projects &amp; contacts<small id="c-projects"></small></button>
+  </div>
+
+  <section class="list" id="list" aria-live="polite"></section>
+  <footer id="foot"></footer>
+</div>
+
+<script>
+(function(){
+const TABS={projects:"Projects",tasks:"Tasks",inout:"In-Out",meetings:"Meetings"};
+const REFRESH_MS=120000;
+const data={projects:[],tasks:[],inout:[],meetings:[]};
+let tab="tasks",project="all",person="",loaded=false,loading=false;
+try{const h=location.hash.slice(1);if(TABS[h])tab=h}catch(_){}
+try{person=localStorage.getItem("pcb-person")||""}catch(_){}
+
+const $=s=>document.querySelector(s);
+const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const norm=s=>String(s||"").trim().toLowerCase().replace(/[–—]/g,"-").replace(/\s+/g," ");
+document.title=BOARD_TITLE;$("#title").textContent=BOARD_TITLE;
+
+/* ---------- CSV ---------- */
+function parseCSV(t){
+  const rows=[];let row=[],f="",q=false;
+  for(let i=0;i<t.length;i++){const c=t[i];
+    if(q){if(c==='"'){if(t[i+1]==='"'){f+='"';i++}else q=false}else f+=c}
+    else if(c==='"')q=true;
+    else if(c===","){row.push(f);f=""}
+    else if(c==="\n"||c==="\r"){if(c==="\r"&&t[i+1]==="\n")i++;row.push(f);rows.push(row);row=[];f=""}
+    else f+=c}
+  if(f!==""||row.length){row.push(f);rows.push(row)}
+  return rows;
+}
+function toObjects(csv){
+  const r=parseCSV(csv);if(!r.length)return[];
+  const keys=r[0].map(h=>norm(h).replace(/[^a-z0-9]+/g,""));
+  return r.slice(1).map(c=>{const o={};keys.forEach((k,i)=>o[k]=(c[i]||"").trim());return o})
+    .filter(o=>Object.values(o).some(v=>v!==""));
+}
+
+/* ---------- dates ---------- */
+const MON={jan:0,feb:1,mar:2,apr:3,may:4,jun:5,jul:6,aug:7,sep:8,oct:9,nov:10,dec:11};
+function parseDate(s){
+  s=String(s||"").trim();if(!s)return null;let m;
+  if(m=s.match(/^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})/))return new Date(+m[1],m[2]-1,+m[3]);
+  if(m=s.match(/^(\d{1,2})[-/.](\d{1,2})[-/.](\d{2,4})/)){let y=+m[3];if(y<100)y+=2000;let d=+m[1],mo=+m[2];if(mo>12&&d<=12){[d,mo]=[mo,d]}return new Date(y,mo-1,d)}
+  if(m=s.match(/^(\d{1,2})[\s-]([A-Za-z]{3})[A-Za-z]*[\s,-]+(\d{4})/)){const mo=MON[m[2].toLowerCase()];if(mo!=null)return new Date(+m[3],mo,+m[1])}
+  if(m=s.match(/^([A-Za-z]{3})[A-Za-z]*\s+(\d{1,2}),?\s+(\d{4})/)){const mo=MON[m[1].toLowerCase()];if(mo!=null)return new Date(+m[3],mo,+m[2])}
+  const d=new Date(s);return isNaN(d)?null:new Date(d.getFullYear(),d.getMonth(),d.getDate());
+}
+const today=()=>{const d=new Date();return new Date(d.getFullYear(),d.getMonth(),d.getDate())};
+const days=(d)=>Math.round((d-today())/864e5);
+const fmt=(s)=>{const d=parseDate(s);return d?d.toLocaleDateString(undefined,{day:"numeric",month:"short",year:"numeric"}):s};
+
+/* ---------- status helpers ---------- */
+const taskState=t=>{const s=norm(t.status);if(s.startsWith("done")||s.startsWith("complete"))return"done";if(s.startsWith("block"))return"blocked";if(s.startsWith("in prog")||s==="doing"||s==="ongoing")return"doing";return"todo"};
+const STATE_LABEL={todo:"To do",doing:"In progress",blocked:"Blocked",done:"Done"};
+function sev(state,due){if(state==="done")return"ok";if(state==="blocked")return"bad";const d=parseDate(due);if(d){const n=days(d);if(n<0)return"bad";if(n<=7)return"warn"}return state==="doing"?"acc":"idle"}
+const ioDone=x=>/^(received|sent|done|complete)/.test(norm(x.status));
+const isIn=x=>norm(x.direction).startsWith("in");
+const projectOf=x=>norm(x.project);
+const inProject=x=>project==="all"||projectOf(x)===project;
+const mine=t=>!person||norm(t.owner)===person;
+
+/* ---------- render ---------- */
+function render(){
+  const tasks=data.tasks.filter(inProject).filter(mine);
+  const open=tasks.filter(t=>taskState(t)!=="done");
+  $("#g-over").textContent=loaded?open.filter(t=>{const d=parseDate(t.duedate);return d&&days(d)<0}).length:"–";
+  $("#g-week").textContent=loaded?open.filter(t=>{const d=parseDate(t.duedate);return d&&days(d)>=0&&days(d)<=7}).length:"–";
+  $("#g-open").textContent=loaded?open.length:"–";
+  $("#g-wait").textContent=loaded?data.inout.filter(inProject).filter(x=>isIn(x)&&!ioDone(x)).length:"–";
+
+  // project chips
+  const names=[...new Set([...data.projects.map(p=>p.project),...data.tasks.map(t=>t.project)].filter(Boolean).map(s=>s.trim()))];
+  const seen=new Set(),uniq=[];names.forEach(n=>{const k=norm(n);if(!seen.has(k)){seen.add(k);uniq.push(n)}});
+  if(project!=="all"&&!seen.has(project))project="all";
+  const strip=$("#strip");strip.innerHTML="";
+  const chip=(k,label)=>{const b=document.createElement("button");b.type="button";b.className="chip";b.textContent=label;b.setAttribute("aria-pressed",String(project===k));b.onclick=()=>{project=k;render()};strip.appendChild(b)};
+  chip("all","All projects");uniq.forEach(n=>chip(norm(n),n));
+
+  // person select
+  const people=new Map();data.tasks.forEach(t=>{const k=norm(t.owner);if(k&&!people.has(k))people.set(k,t.owner.trim())});
+  const sel=$("#person");const cur=person;
+  sel.innerHTML=`<option value="">Everyone</option>`+[...people.entries()].sort((a,b)=>a[1].localeCompare(b[1])).map(([k,v])=>`<option value="${esc(k)}"${k===cur?" selected":""}>${esc(v)}</option>`).join("");
+  if(person&&!people.has(person)&&loaded){person="";sel.value=""}
+
+  document.querySelectorAll(".tab").forEach(b=>b.setAttribute("aria-selected",String(b.dataset.tab===tab)));
+  $("#c-tasks").textContent=loaded?data.tasks.filter(t=>taskState(t)!=="done").length||"":"";
+  $("#c-inout").textContent=loaded?data.inout.filter(x=>!ioDone(x)).length||"":"";
+  $("#c-meetings").textContent=loaded?data.meetings.length||"":"";
+  $("#c-projects").textContent=loaded?data.projects.length||"":"";
+  renderList();
+}
+
+function renderList(){
+  const L=$("#list");
+  if(!loaded){L.innerHTML=`<div class="empty">Loading the latest from the project sheet…</div>`;return}
+  let html="";
+  if(tab==="tasks"){
+    const ord={blocked:0,doing:1,todo:2,done:3};
+    const rows=data.tasks.filter(inProject).filter(mine).map(t=>({...t,_s:taskState(t),_d:parseDate(t.duedate)}));
+    rows.sort((a,b)=>(a._s==="done")-(b._s==="done")||((a._d||8.64e15)-(b._d||8.64e15))||ord[a._s]-ord[b._s]);
+    const openRows=rows.filter(r=>r._s!=="done"),doneRows=rows.filter(r=>r._s==="done");
+    const card=t=>{const s=sev(t._s,t.duedate);const n=t._d?days(t._d):null;
+      const flag=t._s!=="done"&&n!==null?(n<0?`<span class="pill bad">${-n} day${n===-1?"":"s"} late</span>`:n===0?`<span class="pill warn">Due today</span>`:""):"";
+      const pc={done:"ok",blocked:"bad",doing:"acc",todo:""}[t._s];
+      return `<article class="row s-${s}${t._s==="done"?" done":""}"><div><h3>${esc(t.task)}</h3><div class="meta">${t.project?`<span>${esc(t.project)}</span>`:""}${t.owner?`<span>Owner: ${esc(t.owner)}</span>`:""}${t.duedate?`<span class="d">Due ${esc(fmt(t.duedate))}</span>`:""}${flag}</div></div><span class="pill ${pc}">${STATE_LABEL[t._s]}</span>${t.notes?`<p class="body">${esc(t.notes)}</p>`:""}</article>`};
+    html=openRows.map(card).join("");
+    if(doneRows.length)html+=`<h2 class="group">Done (${doneRows.length})</h2>`+doneRows.map(card).join("");
+  }else if(tab==="inout"){
+    const rows=data.inout.filter(inProject).map(x=>({...x,_d:parseDate(x.date)}));
+    rows.sort((a,b)=>ioDone(a)-ioDone(b)||((a._d||8.64e15)-(b._d||8.64e15)));
+    html=rows.map(x=>{const done=ioDone(x),inc=isIn(x);const n=x._d?days(x._d):null;
+      const s=done?"ok":(n!==null&&n<0)?"bad":(n!==null&&n<=7)?"warn":inc?"acc":"idle";
+      const st=done?(inc?"Received":"Sent"):(inc?"Awaiting":"To send");
+      return `<article class="row s-${s}${done?" done":""}"><div><h3>${esc(x.item)}</h3><div class="meta"><span class="pill ${inc?"acc":""}">${inc?"Incoming":"Outgoing"}</span>${x.project?`<span>${esc(x.project)}</span>`:""}${x.fromto?`<span>${inc?"From":"To"}: ${esc(x.fromto)}</span>`:""}${x.date?`<span class="d">${esc(fmt(x.date))}</span>`:""}${!done&&n!==null&&n<0?`<span class="pill bad">Late</span>`:""}</div></div><span class="pill ${done?"ok":""}">${st}</span>${x.notes?`<p class="body">${esc(x.notes)}</p>`:""}</article>`}).join("");
+  }else if(tab==="meetings"){
+    const rows=data.meetings.filter(inProject).map(m=>({...m,_d:parseDate(m.date)}));
+    rows.sort((a,b)=>(b._d||0)-(a._d||0));
+    html=rows.map(m=>{const up=m._d&&days(m._d)>=0;
+      return `<article class="row s-${up?"acc":"idle"}"><div><h3>${esc(m.topic||"Meeting")}</h3><div class="meta">${m.date?`<span class="d">${esc(fmt(m.date))}</span>`:""}${m.project?`<span>${esc(m.project)}</span>`:""}${m.attendees?`<span>With: ${esc(m.attendees)}</span>`:""}</div></div>${up?`<span class="pill acc">Upcoming</span>`:"<span></span>"}${m.decisions?`<p class="body"><strong>Decisions:</strong> ${esc(m.decisions)}</p>`:""}${m.actionitems?`<p class="body"><strong>Action items:</strong> ${esc(m.actionitems)}</p>`:""}</article>`}).join("");
+  }else{
+    const rows=data.projects.filter(p=>project==="all"||norm(p.project)===project);
+    html=rows.length?`<div class="pgrid">${rows.map(p=>{const k=norm(p.project);
+      const ot=data.tasks.filter(t=>projectOf(t)===k&&taskState(t)!=="done");
+      const od=ot.filter(t=>{const d=parseDate(t.duedate);return d&&days(d)<0}).length;
+      const aw=data.inout.filter(x=>projectOf(x)===k&&isIn(x)&&!ioDone(x)).length;
+      const dl=[["Client",p.client],["Focal person",p.focalperson],["Contact",p.focalcontact],["Phase",p.phase],["Team",p.team]].filter(r=>r[1]).map(r=>`<dt>${r[0]}</dt><dd>${esc(r[1])}</dd>`).join("");
+      return `<article class="pcard"><h3>${esc(p.project)}</h3>${dl?`<dl>${dl}</dl>`:""}${p.notes?`<p class="body" style="margin:0">${esc(p.notes)}</p>`:""}<div class="counts"><span>${ot.length} open task${ot.length===1?"":"s"}</span>${od?`<span class="bad">${od} overdue</span>`:""}<span>${aw} awaiting</span></div></article>`}).join("")}</div>`:"";
+  }
+  if(!html){html=`<div class="empty">${{tasks:person?"No tasks assigned to this person here.":"No tasks here yet.",inout:"Nothing incoming or outgoing is being tracked here.",meetings:"No meetings logged yet.",projects:"No projects listed yet."}[tab]}</div>`}
+  L.innerHTML=html;
+}
+
+/* ---------- load ---------- */
+function url(sheet){return`https://docs.google.com/spreadsheets/d/${encodeURIComponent(SHEET_ID)}/gviz/tq?tqx=out:csv&headers=1&sheet=${encodeURIComponent(sheet)}&_=${Date.now()}`}
+function notice(html){const n=$("#notice");if(!html){n.hidden=true;n.innerHTML="";return}n.className="notice";n.innerHTML=html;n.hidden=false}
+async function load(){
+  if(loading)return;
+  if(!SHEET_ID||SHEET_ID.startsWith("PASTE")){notice("<strong>Not connected yet.</strong> Put your Google Sheet ID in the SETTINGS line at the top of this file.");$("#synced").textContent="Not connected";$("#dot").className="dot err";return}
+  loading=true;$("#synced").textContent="Updating…";
+  try{
+    const res=await Promise.all(Object.entries(TABS).map(async([k,name])=>{
+      const r=await fetch(url(name),{cache:"no-store"});
+      if(!r.ok)throw new Error("HTTP "+r.status);
+      const t=await r.text();
+      if(/^\s*</.test(t))throw new Error("not shared");
+      return[k,toObjects(t)];
+    }));
+    res.forEach(([k,v])=>data[k]=v);
+    loaded=true;notice("");
+    $("#dot").className="dot live";
+    $("#synced").textContent="Updated "+new Date().toLocaleTimeString([], {hour:"numeric",minute:"2-digit"});
+    $("#foot").textContent="Refreshes automatically every 2 minutes while open.";
+  }catch(e){
+    $("#dot").className="dot err";
+    $("#synced").textContent=loaded?"Couldn't refresh":"Couldn't load";
+    notice(loaded?"<strong>Couldn't refresh.</strong> Showing the last loaded data. Check your internet connection and tap Refresh."
+      :"<strong>Couldn't load the project sheet.</strong> Check your internet connection. If this keeps happening, the sheet owner should make sure the Google Sheet is shared as “Anyone with the link – Viewer” and the tab names haven't changed.");
+  }finally{loading=false;render()}
+}
+
+/* ---------- events ---------- */
+document.addEventListener("click",e=>{const t=e.target.closest(".tab");if(t){tab=t.dataset.tab;try{history.replaceState(null,"","#"+tab)}catch(_){}render()}});
+$("#person").addEventListener("change",e=>{person=e.target.value;try{localStorage.setItem("pcb-person",person)}catch(_){}render()});
+$("#refresh").addEventListener("click",load);
+document.addEventListener("visibilitychange",()=>{if(!document.hidden)load()});
+setInterval(()=>{if(!document.hidden)load()},REFRESH_MS);
+render();load();
+})();
+</script>
+</body>
+</html>
