@@ -75,6 +75,14 @@ button:focus-visible,select:focus-visible{outline:2px solid var(--accent);outlin
 .row{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:10px 12px;display:grid;grid-template-columns:minmax(0,1fr) auto;gap:6px 12px;border-left:4px solid var(--idle)}
 .row.s-bad{border-left-color:var(--bad)} .row.s-warn{border-left-color:var(--warn)} .row.s-ok{border-left-color:var(--ok)} .row.s-acc{border-left-color:var(--accent)}
 .row.done{opacity:.6}
+.row.u-red{border-left-color:var(--bad);background:var(--bad-soft)}
+.row.u-yellow{border-left-color:var(--warn);background:var(--warn-soft)}
+.row.u-green{border-left-color:var(--ok);background:var(--ok-soft)}
+.row.u-red .pill,.row.u-yellow .pill,.row.u-green .pill{background:var(--panel)}
+@keyframes pcb-pulse{0%,100%{box-shadow:0 0 0 0 transparent}50%{box-shadow:0 0 0 3px var(--bad)}}
+@media (prefers-reduced-motion:no-preference){.row.u-red.flash{animation:pcb-pulse 1.6s ease-in-out infinite}}
+.legend{display:flex;flex-wrap:wrap;gap:6px 16px;font-size:12px;color:var(--muted);margin:0 0 2px}
+.legend i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:6px;vertical-align:-1px}
 .row h3{margin:0;font-size:14.5px;font-weight:600;overflow-wrap:anywhere}
 .meta{display:flex;flex-wrap:wrap;gap:4px 12px;font-size:12.5px;color:var(--muted)}
 .meta .d{font-family:var(--mono);font-size:12px}
@@ -189,6 +197,15 @@ function meetWhen(ds,ts){if(parseTime(ts)==null)return ds?fmt(ds):"";const m=pkM
 const pkLabel=(ds,ts)=>parseTime(ts)!=null?`${ds?fmt(ds)+", ":""}${fmtTime(ts)} Pakistan time`:"";
 
 /* ---------- status helpers ---------- */
+/* urgency colour: combines priority and deadline (Pakistan time) */
+function urgency(state,due,time,pri){if(state==="done")return"green";if(state==="blocked"||isLate(due,time))return"red";
+  const p=norm(pri),m=pkMoment(due,time),hrs=m?(m-new Date())/36e5:null,dd=parseDate(due),nd=dd?days(dd):null;
+  if(p.startsWith("high")&&hrs!==null&&hrs<=48)return"red";
+  if((nd!==null&&nd<=7)||p.startsWith("high")||p.startsWith("med"))return"yellow";return"green"}
+const URANK={red:0,yellow:1,green:2};
+const priPill=p=>{const k=norm(p);if(!k)return"";const c=k.startsWith("high")?"bad":k.startsWith("med")?"warn":"ok";return `<span class="pill ${c}">${esc(p.trim())} priority</span>`};
+const LEGEND=`<p class="legend"><span><i style="background:var(--bad)"></i>Red: overdue, blocked, or high priority due within 2 days</span><span><i style="background:var(--warn)"></i>Yellow: due within 7 days or medium/high priority</span><span><i style="background:var(--ok)"></i>Green: on track or done</span></p>`;
+
 const taskState=t=>{const s=norm(t.status);if(s.startsWith("done")||s.startsWith("complete"))return"done";if(s.startsWith("block"))return"blocked";if(s.startsWith("in prog")||s==="doing"||s==="ongoing")return"doing";return"todo"};
 const STATE_LABEL={todo:"To do",doing:"In progress",blocked:"Blocked",done:"Done"};
 function sev(state,due,time){if(state==="done")return"ok";if(state==="blocked")return"bad";const d=parseDate(due);if(d){if(isLate(due,time))return"bad";if(days(d)<=7)return"warn"}return state==="doing"?"acc":"idle"}
@@ -236,13 +253,14 @@ function renderList(){
   if(tab==="tasks"){
     const ord={blocked:0,doing:1,todo:2,done:3};
     const rows=data.tasks.filter(inProject).filter(mine).map(t=>({...t,_s:taskState(t),_d:deadline(t.duedate,t.duetime)}));
-    rows.sort((a,b)=>(a._s==="done")-(b._s==="done")||((a._d||8.64e15)-(b._d||8.64e15))||ord[a._s]-ord[b._s]);
+    rows.forEach(r=>r._u=urgency(r._s,r.duedate,r.duetime,r.priority));
+    rows.sort((a,b)=>(a._s==="done")-(b._s==="done")||URANK[a._u]-URANK[b._u]||((a._d||8.64e15)-(b._d||8.64e15))||ord[a._s]-ord[b._s]);
     const openRows=rows.filter(r=>r._s!=="done"),doneRows=rows.filter(r=>r._s==="done");
-    const card=t=>{const s=sev(t._s,t.duedate,t.duetime);const dd=parseDate(t.duedate),n=dd?days(dd):null,late=isLate(t.duedate,t.duetime);
+    const card=t=>{const u=t._u;const dd=parseDate(t.duedate),n=dd?days(dd):null,late=isLate(t.duedate,t.duetime);
       const flag=t._s!=="done"&&n!==null?(late?(n<0?`<span class="pill bad">${-n} day${n===-1?"":"s"} late</span>`:`<span class="pill bad">Overdue</span>`):n===0?`<span class="pill warn">Due today</span>`:""):"";
       const pc={done:"ok",blocked:"bad",doing:"acc",todo:""}[t._s];
-      return `<article class="row s-${s}${t._s==="done"?" done":""}"><div><h3>${esc(t.task)}</h3><div class="meta">${t.project?`<span>${esc(t.project)}</span>`:""}${t.owner?`<span>Owner: ${esc(t.owner)}</span>`:""}${t.duedate||t.duetime?`<span class="d">Due ${esc(taskWhen(t.duedate,t.duetime))}</span>`:""}${flag}</div></div><span class="pill ${pc}">${STATE_LABEL[t._s]}</span>${t.notes?`<p class="body">${esc(t.notes)}</p>`:""}</article>`};
-    html=openRows.map(card).join("");
+      return `<article class="row u-${u}${u==="red"?" flash":""}${t._s==="done"?" done":""}"><div><h3>${esc(t.task)}</h3><div class="meta">${t.project?`<span>${esc(t.project)}</span>`:""}${t.owner?`<span>Owner: ${esc(t.owner)}</span>`:""}${t.duedate||t.duetime?`<span class="d">Due ${esc(taskWhen(t.duedate,t.duetime))}</span>`:""}${priPill(t.priority||"")}${flag}</div></div><span class="pill ${pc}">${STATE_LABEL[t._s]}</span>${t.notes?`<p class="body">${esc(t.notes)}</p>`:""}</article>`};
+    html=(rows.length?LEGEND:"")+openRows.map(card).join("");
     if(doneRows.length)html+=`<h2 class="group">Done (${doneRows.length})</h2>`+doneRows.map(card).join("");
   }else if(tab==="inout"){
     const rows=data.inout.filter(inProject).map(x=>({...x,_d:parseDate(x.date)}));
